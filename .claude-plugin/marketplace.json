@@ -1,0 +1,13 @@
+{
+  "name": "aiblecampus",
+  "owner": {
+    "name": "에이블캠퍼스"
+  },
+  "plugins": [
+    {
+      "name": "aiblecampus-paas",
+      "source": "./clients/plugin/aiblecampus-paas",
+      "description": "에이블캠퍼스 PaaS 배포 도구. 프로젝트를 빌드하고 격리 실행해 접속 URL을 발급한다."
+    }
+  ]
+}

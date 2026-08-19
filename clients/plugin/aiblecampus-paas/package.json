@@ -1,0 +1,15 @@
+{
+  "name": "aiblecampus-paas-plugin",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "에이블캠퍼스 PaaS 배포 클라이언트. Claude Code 플러그인으로 설치한다.",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "tar": "^7.5.1",
+    "zod": "^4.1.13"
+  }
+}

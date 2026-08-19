@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "paas": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/mcp/index.ts"],
+      "env": {
+        "PAAS_API_URL": "${PAAS_API_URL:-http://127.0.0.1:8730}",
+        "PAAS_TOKEN": "${PAAS_TOKEN:-}"
+      }
+    }
+  }
+}
