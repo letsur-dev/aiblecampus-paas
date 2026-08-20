@@ -42,6 +42,29 @@ export function toDeploymentName(input: string): string {
   return normalized.length < 2 ? `app-${normalized}` : normalized;
 }
 
+/**
+ * git 주소로 볼 수 있는 입력인지 본다.
+ *
+ * 사용자가 로컬 경로와 git 주소를 같은 인자에 넣기 때문에 필요하다.
+ * 서버 쪽 판별과 같은 규칙이며, 플러그인은 폴더 밖을 참조할 수 없어 복제해 둔다.
+ * 한쪽을 고치면 `src/source/provider.ts` 도 고친다.
+ */
+export function looksLikeGitUrl(value: string): boolean {
+  const trimmed = value.trim();
+  if (trimmed === "") return false;
+  if (/^(https?|git|ssh):\/\//.test(trimmed)) return true;
+  if (/^[\w.-]+@[\w.-]+:.+/.test(trimmed)) return true;
+  return false;
+}
+
+/** git 주소에서 배포 이름 후보를 뽑는다. 마지막 경로 조각에서 .git 을 뗀다. */
+export function gitRepoNameOf(url: string): string {
+  const withoutQuery = url.split(/[?#]/)[0] ?? url;
+  const trimmed = withoutQuery.replace(/\/+$/, "");
+  const last = trimmed.split(/[/:]/).pop() ?? "app";
+  return last.replace(/\.git$/, "") || "app";
+}
+
 type JsonRecord = Record<string, unknown>;
 
 type ApiResult = {
@@ -137,20 +160,56 @@ server.registerTool(
   {
     title: "프로젝트 배포",
     description:
-      "현재 프로젝트 디렉토리를 에이블캠퍼스 PaaS 에 배포한다. 소스를 tar.gz 로 묶어 업로드하고 빌드와 실행, 접속 URL 발급까지 수행한다.",
+      "프로젝트를 에이블캠퍼스 PaaS 에 배포한다. 로컬 디렉토리 경로를 주면 tar.gz 로 묶어 올리고, git 주소를 주면 서버가 직접 clone 한다. 빌드와 실행, 접속 URL 발급까지 수행한다.",
     inputSchema: {
       path: z
         .string()
-        .describe("배포할 프로젝트 디렉토리의 절대 경로. 보통 현재 작업 디렉토리다"),
+        .describe(
+          "배포할 프로젝트의 위치. 로컬 디렉토리의 절대 경로(보통 현재 작업 디렉토리)이거나 public git 저장소의 https 주소다",
+        ),
       name: z
         .string()
         .optional()
         .describe(
           "배포 이름. 접속 URL 의 하위 도메인이 된다. 생략하면 디렉토리 이름에서 만든다",
         ),
+      ref: z
+        .string()
+        .optional()
+        .describe("git 주소일 때만 쓴다. branch 나 tag 이름. 생략하면 기본 branch"),
+      subdir: z
+        .string()
+        .optional()
+        .describe(
+          "git 주소일 때만 쓴다. 저장소 안에서 배포할 하위 디렉토리. monorepo 에서 쓴다",
+        ),
     },
   },
-  async ({ path: projectPath, name }) => {
+  async ({ path: projectPath, name, ref, subdir }) => {
+    // git 주소면 서버가 직접 clone 한다. 업로드가 없어 큰 저장소에서 훨씬 빠르다.
+    if (looksLikeGitUrl(projectPath)) {
+      const deploymentName = toDeploymentName(
+        name ?? gitRepoNameOf(projectPath),
+      );
+      const result = await callApi("/v1/deployments/git", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: deploymentName,
+          url: projectPath,
+          ...(ref === undefined ? {} : { ref }),
+          ...(subdir === undefined ? {} : { subdir }),
+        }),
+      });
+      if (!result.ok) return failure("배포에 실패했다", result);
+      return textResult({
+        배포됨: true,
+        이름: deploymentName,
+        소스: "git",
+        ...(typeof result.body === "string" ? { 응답: result.body } : result.body),
+      });
+    }
+
     if (!existsSync(projectPath)) {
       return errorResult(`경로가 없다: ${projectPath}`);
     }
