@@ -152,7 +152,7 @@ function failure(prefix: string, result: ApiResult): ReturnType<typeof errorResu
 
 const server = new McpServer({
   name: "aiblecampus-paas",
-  version: "0.4.0",
+  version: "0.5.0",
 });
 
 server.registerTool(
@@ -179,9 +179,13 @@ server.registerTool(
         .record(z.string(), z.string())
         .optional()
         .describe("배포할 때 주입할 일반 환경변수. 필요한 키 누락 판정에 사용한다"),
+      secretKeys: z
+        .array(z.string())
+        .optional()
+        .describe("비밀값으로 주입할 환경변수 키 이름. 값은 검증 도구에 넘기지 않는다"),
     },
   },
-  async ({ path: projectPath, ref, subdir, env }) => {
+  async ({ path: projectPath, ref, subdir, env, secretKeys }) => {
     if (looksLikeGitUrl(projectPath)) {
       const result = await callApi("/v1/preflight/git", {
         method: "POST",
@@ -191,6 +195,7 @@ server.registerTool(
           ...(ref === undefined ? {} : { ref }),
           ...(subdir === undefined ? {} : { subdir }),
           env: env ?? {},
+          secretKeys: secretKeys ?? [],
         }),
       });
       if (!result.ok) return failure("배포 전 검증에 실패했다", result);
@@ -221,6 +226,9 @@ server.registerTool(
       "source.tar.gz",
     );
     if (env !== undefined) form.set("env", JSON.stringify(env));
+    if (secretKeys !== undefined) {
+      form.set("secretKeys", JSON.stringify(secretKeys));
+    }
 
     const result = await callApi("/v1/preflight", {
       method: "POST",
@@ -267,6 +275,12 @@ server.registerTool(
         .record(z.string(), z.string())
         .optional()
         .describe("배포 컨테이너에 주입할 일반 환경변수"),
+      secrets: z
+        .record(z.string(), z.string().min(1))
+        .optional()
+        .describe(
+          "배포 컨테이너에 안전하게 주입할 비밀값. 응답과 로그에는 값이 표시되지 않는다",
+        ),
       resources: z
         .object({
           cpus: z.number().positive(),
@@ -278,7 +292,7 @@ server.registerTool(
         ),
     },
   },
-  async ({ path: projectPath, name, ref, subdir, env, resources }) => {
+  async ({ path: projectPath, name, ref, subdir, env, secrets, resources }) => {
     // git 주소면 서버가 직접 clone 한다. 업로드가 없어 큰 저장소에서 훨씬 빠르다.
     if (looksLikeGitUrl(projectPath)) {
       const deploymentName = toDeploymentName(
@@ -293,6 +307,7 @@ server.registerTool(
           ...(ref === undefined ? {} : { ref }),
           ...(subdir === undefined ? {} : { subdir }),
           env: env ?? {},
+          ...(secrets === undefined ? {} : { secrets }),
           ...(resources === undefined ? {} : { resources }),
         }),
       });
@@ -328,6 +343,7 @@ server.registerTool(
       "source.tar.gz",
     );
     if (env !== undefined) form.set("env", JSON.stringify(env));
+    if (secrets !== undefined) form.set("secrets", JSON.stringify(secrets));
     if (resources !== undefined) {
       form.set("resources", JSON.stringify(resources));
     }
@@ -364,6 +380,69 @@ server.registerTool(
     );
     if (!result.ok) return failure("상태를 조회하지 못했다", result);
     return textResult(result.body);
+  },
+);
+
+server.registerTool(
+  "deployment_config",
+  {
+    title: "배포 설정 조회",
+    description:
+      "배포에 저장된 일반 환경변수 값과 비밀값 키 이름을 조회한다. 비밀값 원문은 반환하지 않는다.",
+    inputSchema: {
+      deployment: z.string().describe("배포 이름 또는 배포 id"),
+    },
+  },
+  async ({ deployment }) => {
+    const result = await callApi(
+      `/v1/deployments/${encodeURIComponent(deployment)}/config`,
+    );
+    if (!result.ok) return failure("설정을 조회하지 못했다", result);
+    return textResult(result.body);
+  },
+);
+
+server.registerTool(
+  "set_deployment_config",
+  {
+    title: "배포 설정 변경",
+    description:
+      "일반 환경변수와 비밀값을 추가, 교체, 삭제한다. null 값은 해당 키를 삭제한다. 변경 내용은 다음 배포부터 적용되며 비밀값 원문은 응답하지 않는다.",
+    inputSchema: {
+      deployment: z.string().describe("배포 이름 또는 배포 id"),
+      env: z
+        .record(z.string(), z.union([z.string(), z.null()]))
+        .optional()
+        .describe("일반 환경변수 변경. 문자열은 저장, null 은 삭제"),
+      secrets: z
+        .record(z.string(), z.union([z.string().min(1), z.null()]))
+        .optional()
+        .describe(
+          "비밀값 변경. 문자열은 암호화 저장, null 은 삭제. 조회 결과에는 키 이름만 나온다",
+        ),
+    },
+  },
+  async ({ deployment, env, secrets }) => {
+    if (env === undefined && secrets === undefined) {
+      return errorResult("env 또는 secrets 중 하나가 필요하다");
+    }
+    const result = await callApi(
+      `/v1/deployments/${encodeURIComponent(deployment)}/config`,
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          ...(env === undefined ? {} : { env }),
+          ...(secrets === undefined ? {} : { secrets }),
+        }),
+      },
+    );
+    if (!result.ok) return failure("설정을 변경하지 못했다", result);
+    return textResult({
+      변경됨: true,
+      적용시점: "다음 배포",
+      ...(typeof result.body === "string" ? { 응답: result.body } : result.body),
+    });
   },
 );
 
