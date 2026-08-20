@@ -152,7 +152,7 @@ function failure(prefix: string, result: ApiResult): ReturnType<typeof errorResu
 
 const server = new McpServer({
   name: "aiblecampus-paas",
-  version: "0.3.0",
+  version: "0.4.0",
 });
 
 server.registerTool(
@@ -267,9 +267,18 @@ server.registerTool(
         .record(z.string(), z.string())
         .optional()
         .describe("배포 컨테이너에 주입할 일반 환경변수"),
+      resources: z
+        .object({
+          cpus: z.number().positive(),
+          memoryMb: z.number().int().min(64),
+        })
+        .optional()
+        .describe(
+          "프로젝트에 적용할 CPU 수와 메모리 MB. 생략하면 플랫폼 기본값을 사용하며 운영 상한을 넘으면 배포가 거부된다",
+        ),
     },
   },
-  async ({ path: projectPath, name, ref, subdir, env }) => {
+  async ({ path: projectPath, name, ref, subdir, env, resources }) => {
     // git 주소면 서버가 직접 clone 한다. 업로드가 없어 큰 저장소에서 훨씬 빠르다.
     if (looksLikeGitUrl(projectPath)) {
       const deploymentName = toDeploymentName(
@@ -284,6 +293,7 @@ server.registerTool(
           ...(ref === undefined ? {} : { ref }),
           ...(subdir === undefined ? {} : { subdir }),
           env: env ?? {},
+          ...(resources === undefined ? {} : { resources }),
         }),
       });
       if (!result.ok) return failure("배포에 실패했다", result);
@@ -318,6 +328,9 @@ server.registerTool(
       "source.tar.gz",
     );
     if (env !== undefined) form.set("env", JSON.stringify(env));
+    if (resources !== undefined) {
+      form.set("resources", JSON.stringify(resources));
+    }
 
     const result = await callApi("/v1/deployments", {
       method: "POST",
