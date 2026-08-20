@@ -152,8 +152,88 @@ function failure(prefix: string, result: ApiResult): ReturnType<typeof errorResu
 
 const server = new McpServer({
   name: "aiblecampus-paas",
-  version: "0.2.0",
+  version: "0.3.0",
 });
+
+server.registerTool(
+  "validate_project",
+  {
+    title: "프로젝트 배포 전 검증",
+    description:
+      "프로젝트를 빌드하거나 실행하지 않고 배포 가능 여부를 판정한다. runtime, 프레임워크, 실행 명령, PORT와 bind, 환경변수, Dockerfile 위험을 구조화해 반환한다.",
+    inputSchema: {
+      path: z
+        .string()
+        .describe(
+          "검증할 프로젝트의 로컬 디렉토리 절대 경로이거나 public git 저장소의 https 주소다",
+        ),
+      ref: z
+        .string()
+        .optional()
+        .describe("git 주소일 때만 쓰는 branch 나 tag 이름"),
+      subdir: z
+        .string()
+        .optional()
+        .describe("git 저장소 안에서 검증할 하위 디렉토리"),
+      env: z
+        .record(z.string(), z.string())
+        .optional()
+        .describe("배포할 때 주입할 일반 환경변수. 필요한 키 누락 판정에 사용한다"),
+    },
+  },
+  async ({ path: projectPath, ref, subdir, env }) => {
+    if (looksLikeGitUrl(projectPath)) {
+      const result = await callApi("/v1/preflight/git", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          url: projectPath,
+          ...(ref === undefined ? {} : { ref }),
+          ...(subdir === undefined ? {} : { subdir }),
+          env: env ?? {},
+        }),
+      });
+      if (!result.ok) return failure("배포 전 검증에 실패했다", result);
+      return textResult({
+        검증됨: true,
+        소스: "git",
+        ...(typeof result.body === "string" ? { 응답: result.body } : result.body),
+      });
+    }
+
+    if (!existsSync(projectPath)) {
+      return errorResult(`경로가 없다: ${projectPath}`);
+    }
+
+    let tarball: Buffer;
+    try {
+      tarball = await packDirectory(projectPath);
+    } catch (error) {
+      return errorResult(
+        `소스를 묶지 못했다: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+
+    const form = new FormData();
+    form.set(
+      "source",
+      new Blob([new Uint8Array(tarball)], { type: "application/gzip" }),
+      "source.tar.gz",
+    );
+    if (env !== undefined) form.set("env", JSON.stringify(env));
+
+    const result = await callApi("/v1/preflight", {
+      method: "POST",
+      body: form,
+    });
+    if (!result.ok) return failure("배포 전 검증에 실패했다", result);
+    return textResult({
+      검증됨: true,
+      소스: "tarball",
+      ...(typeof result.body === "string" ? { 응답: result.body } : result.body),
+    });
+  },
+);
 
 server.registerTool(
   "deploy_project",
@@ -183,9 +263,13 @@ server.registerTool(
         .describe(
           "git 주소일 때만 쓴다. 저장소 안에서 배포할 하위 디렉토리. monorepo 에서 쓴다",
         ),
+      env: z
+        .record(z.string(), z.string())
+        .optional()
+        .describe("배포 컨테이너에 주입할 일반 환경변수"),
     },
   },
-  async ({ path: projectPath, name, ref, subdir }) => {
+  async ({ path: projectPath, name, ref, subdir, env }) => {
     // git 주소면 서버가 직접 clone 한다. 업로드가 없어 큰 저장소에서 훨씬 빠르다.
     if (looksLikeGitUrl(projectPath)) {
       const deploymentName = toDeploymentName(
@@ -199,6 +283,7 @@ server.registerTool(
           url: projectPath,
           ...(ref === undefined ? {} : { ref }),
           ...(subdir === undefined ? {} : { subdir }),
+          env: env ?? {},
         }),
       });
       if (!result.ok) return failure("배포에 실패했다", result);
@@ -232,6 +317,7 @@ server.registerTool(
       new Blob([new Uint8Array(tarball)], { type: "application/gzip" }),
       "source.tar.gz",
     );
+    if (env !== undefined) form.set("env", JSON.stringify(env));
 
     const result = await callApi("/v1/deployments", {
       method: "POST",

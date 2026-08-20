@@ -11,7 +11,13 @@ description: 현재 프로젝트를 에이블캠퍼스 PaaS에 배포한다. "�
 
 ## 배포 절차
 
-1. **배포 전 확인**: 앱이 `process.env.PORT`를 읽어 listen하는지 확인한다. 이것이 플랫폼의 1차 계약이다.
+1. **배포 전 검증**: `validate_project` 도구를 먼저 호출한다. 이 도구는 실행 자원을 만들지 않고 프로젝트를 분석한다.
+
+   - `deployable`이 `false`면 `issues`의 `path`, `message`, `fix`를 읽고 프로젝트를 수정한다.
+   - `severity`가 `error`인 항목을 모두 해결한 뒤 다시 검증한다.
+   - `warning`은 배포를 막지 않지만 사용자에게 알려준다.
+
+   앱은 `process.env.PORT`를 읽어 listen해야 한다. 이것이 플랫폼의 1차 계약이다.
 
    ```js
    const port = Number(process.env.PORT || 3000);
@@ -20,7 +26,7 @@ description: 현재 프로젝트를 에이블캠퍼스 PaaS에 배포한다. "�
 
    `0.0.0.0`으로 바인딩해야 컨테이너 밖에서 접속된다. `127.0.0.1`로 bind하면 배포는 성공해도 접속이 안 된다.
 
-2. **배포 실행**: `deploy_project` 도구를 호출한다. `path`에 프로젝트 디렉토리의 절대 경로를 넘긴다. `name`을 생략하면 디렉토리 이름으로 정해진다.
+2. **배포 실행**: 검증 결과의 `deployable`이 `true`일 때 `deploy_project` 도구를 호출한다. `path`에 프로젝트 디렉토리의 절대 경로를 넘긴다. `name`을 생략하면 디렉토리 이름에서 만든다.
 
    git 저장소를 그대로 배포할 수도 있다. `path`에 public 저장소의 https 주소를 넣으면 서버가 직접 clone한다. 소스를 올리지 않아 큰 저장소에서 빠르다. branch나 tag는 `ref`, monorepo 안의 하위 디렉토리는 `subdir`로 지정한다.
 
@@ -66,6 +72,7 @@ description: 현재 프로젝트를 에이블캠퍼스 PaaS에 배포한다. "�
 
 ## 상태와 로그 확인
 
+- `validate_project`: 실행 자원을 만들지 않는 배포 전 판정과 수정 지침
 - `paas_whoami`: 접속 주소와 인증된 소유자
 - `deployment_status`: 현재 상태, 접속 URL, revision 번호
 - `deployment_logs`: `type`을 `build`나 `runtime`으로 지정한다
