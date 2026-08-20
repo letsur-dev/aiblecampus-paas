@@ -1,0 +1,20 @@
+{
+  "name": "aiblecampus",
+  "interface": {
+    "displayName": "에이블캠퍼스"
+  },
+  "plugins": [
+    {
+      "name": "aiblecampus-paas",
+      "source": {
+        "source": "local",
+        "path": "./plugins/aiblecampus-paas"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

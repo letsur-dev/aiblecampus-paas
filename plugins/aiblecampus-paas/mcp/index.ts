@@ -25,10 +25,8 @@ function token(): string | null {
 
 const TOKEN_MISSING =
   "PAAS_TOKEN 이 설정되어 있지 않다.\n" +
-  "플랫폼 운영자에게 토큰을 받은 뒤 환경변수로 넣는다.\n\n" +
-  '  ~/.claude/settings.json 의 "env" 에 넣거나\n' +
-  "  셸에서 export PAAS_TOKEN=paas_...\n\n" +
-  "설정한 뒤 Claude Code 를 다시 시작한다.";
+  "플랫폼 운영자에게 토큰을 받은 뒤 플러그인이 실행되는 환경의 PAAS_TOKEN 으로 설정한다.\n" +
+  "설정한 뒤 Claude Code 또는 Codex 를 다시 시작한다. 토큰 원문은 대화나 소스에 기록하지 않는다.";
 
 /** 배포 이름 후보를 만든다. 그대로 subdomain 이 되므로 DNS label 규칙에 맞게 정리한다. */
 export function toDeploymentName(input: string): string {
@@ -152,7 +150,7 @@ function failure(prefix: string, result: ApiResult): ReturnType<typeof errorResu
 
 const server = new McpServer({
   name: "aiblecampus-paas",
-  version: "0.5.0",
+  version: "0.6.0",
 });
 
 server.registerTool(
@@ -183,6 +181,12 @@ server.registerTool(
         .array(z.string())
         .optional()
         .describe("비밀값으로 주입할 환경변수 키 이름. 값은 검증 도구에 넘기지 않는다"),
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
     },
   },
   async ({ path: projectPath, ref, subdir, env, secretKeys }) => {
@@ -291,6 +295,12 @@ server.registerTool(
           "프로젝트에 적용할 CPU 수와 메모리 MB. 생략하면 플랫폼 기본값을 사용하며 운영 상한을 넘으면 배포가 거부된다",
         ),
     },
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
   },
   async ({ path: projectPath, name, ref, subdir, env, secrets, resources }) => {
     // git 주소면 서버가 직접 clone 한다. 업로드가 없어 큰 저장소에서 훨씬 빠르다.
@@ -373,6 +383,12 @@ server.registerTool(
     inputSchema: {
       deployment: z.string().describe("배포 이름 또는 배포 id"),
     },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
   },
   async ({ deployment }) => {
     const result = await callApi(
@@ -391,6 +407,12 @@ server.registerTool(
       "배포에 저장된 일반 환경변수 값과 비밀값 키 이름을 조회한다. 비밀값 원문은 반환하지 않는다.",
     inputSchema: {
       deployment: z.string().describe("배포 이름 또는 배포 id"),
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
     },
   },
   async ({ deployment }) => {
@@ -420,6 +442,12 @@ server.registerTool(
         .describe(
           "비밀값 변경. 문자열은 암호화 저장, null 은 삭제. 조회 결과에는 키 이름만 나온다",
         ),
+    },
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: true,
+      openWorldHint: true,
     },
   },
   async ({ deployment, env, secrets }) => {
@@ -463,6 +491,12 @@ server.registerTool(
         .optional()
         .describe("특정 revision 의 로그를 볼 때 지정한다. 생략하면 최신 revision"),
     },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
   },
   async ({ deployment, type, revisionId }) => {
     let targetRevision = revisionId;
@@ -496,6 +530,12 @@ server.registerTool(
     title: "배포 목록",
     description: "내가 이 PaaS 에 올린 배포 목록과 각각의 상태를 조회한다.",
     inputSchema: {},
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
   },
   async () => {
     const result = await callApi("/v1/deployments");
@@ -511,6 +551,12 @@ server.registerTool(
     description:
       "PaaS 주소와 토큰 설정이 올바른지 확인한다. 배포가 인증 문제로 실패할 때 먼저 부른다.",
     inputSchema: {},
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
   },
   async () => {
     const result = await callApi("/v1/me");

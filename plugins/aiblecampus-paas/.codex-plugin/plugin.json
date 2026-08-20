@@ -1,0 +1,50 @@
+{
+  "name": "aiblecampus-paas",
+  "version": "0.6.0",
+  "description": "Build, validate, deploy, and manage web applications on AibleCampus PaaS.",
+  "author": {
+    "name": "에이블캠퍼스"
+  },
+  "homepage": "https://github.com/letsur-dev/aiblecampus-paas-release",
+  "repository": "https://github.com/letsur-dev/aiblecampus-paas-release",
+  "keywords": [
+    "deployment",
+    "paas",
+    "web app",
+    "hosting",
+    "mcp"
+  ],
+  "skills": "./skills/",
+  "mcpServers": {
+    "paas": {
+      "command": "node",
+      "args": [
+        "dist/mcp.js"
+      ],
+      "cwd": ".",
+      "env_vars": [
+        "PAAS_API_URL",
+        "PAAS_TOKEN"
+      ]
+    }
+  },
+  "interface": {
+    "displayName": "에이블캠퍼스 PaaS",
+    "shortDescription": "웹앱을 완성하고 검증해 바로 배포합니다",
+    "longDescription": "요청한 웹사이트나 웹앱을 완성하고 배포 가능 여부를 검증한 뒤 에이블캠퍼스 PaaS에 배포합니다. 배포 상태, 로그, 환경변수와 비밀값도 함께 관리할 수 있습니다.",
+    "developerName": "에이블캠퍼스",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/letsur-dev/aiblecampus-paas-release",
+    "defaultPrompt": [
+      "이 웹앱을 완성해서 배포해줘",
+      "현재 프로젝트가 배포 가능한지 확인해줘",
+      "배포가 실패한 원인을 찾아서 고쳐줘"
+    ],
+    "brandColor": "#2563EB",
+    "screenshots": []
+  }
+}

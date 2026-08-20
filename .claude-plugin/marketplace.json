@@ -3,11 +3,11 @@
   "owner": {
     "name": "에이블캠퍼스"
   },
-  "description": "에이블캠퍼스 PaaS에 프로젝트를 검증하고 배포하며 설정을 관리하는 Claude Code 도구 모음.",
+  "description": "에이블캠퍼스 PaaS에 프로젝트를 검증하고 배포하며 설정을 관리하는 Claude Code와 Codex 도구 모음.",
   "plugins": [
     {
       "name": "aiblecampus-paas",
-      "source": "./clients/plugin/aiblecampus-paas",
+      "source": "./plugins/aiblecampus-paas",
       "description": "에이블캠퍼스 PaaS 배포 도구. 프로젝트를 빌드하고 격리 실행해 접속 URL을 발급한다."
     }
   ]
